@@ -4,7 +4,7 @@ const CACHE_NAME = `vocab1000-${VERSION}`;
 
 const PRECACHE = [
   './',
-  './vocab_trainer_offline.html',
+  './index.html',
   './manifest.webmanifest'
 ];
 
@@ -47,3 +47,4 @@ self.addEventListener('fetch', (event) => {
     }
   })());
 });
+
