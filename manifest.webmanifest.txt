@@ -1,7 +1,7 @@
 {
   "name": "Vocab 1000",
   "short_name": "Vocab1000",
-  "start_url": "./vocab_trainer_offline.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1115",
   "theme_color": "#11131a",
@@ -20,3 +20,4 @@
     }
   ]
 }
+
