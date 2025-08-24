@@ -1,0 +1,22 @@
+{
+  "name": "Vocab 1000",
+  "short_name": "Vocab1000",
+  "start_url": "./vocab_trainer_offline.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#11131a",
+  "icons": [
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAPUlEQVR4nO3PMQEAAAgDINc/9K2hQwQx5cLw6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+BlveQABSPwnaAAAAABJRU5ErkJggg==",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAPUlEQVR4nO3PMQEAAAgDINc/9K2hQwQx5cLw6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+BlveQABSPwnaAAAAABJRU5ErkJggg==",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

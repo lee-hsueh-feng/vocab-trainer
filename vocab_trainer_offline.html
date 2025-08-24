@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vocab 1000 — 離線練習（瀏覽 + 今日/過往清單 + 次數統計 + 一致編號）</title>
+
+<!-- iOS A2HS 必備 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vocab 1000">
+<!-- iOS 主畫面圖標（可換自己的 PNG 路徑） -->
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAPUlEQVR4nO3PMQEAAAgDINc/9K2hQwQx5cLw6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+BlveQABSPwnaAAAAABJRU5ErkJggg==">
+
+<!-- Android/桌機 PWA Manifest -->
+<link rel="manifest" href="./manifest.webmanifest">
+
+<!-- Safari 顏色 -->
+<meta name="theme-color" content="#11131a">
+
+<style>
+  :root { --bg:#0f1115; --panel:#171923; --text:#e6e6ea; --muted:#a9adc1; --accent:#5da9ff; --danger:#ff6b6b; --ok:#20c997; --warn:#f3c623; }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2f3b;background:#11131a;position:sticky;top:0;z-index:10}
+  h1{font-size:18px;margin:0} button,select,input[type=number],input[type=range]{background:#232838;border:1px solid #31384c;color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer}
+  button:hover{filter:brightness(1.1)} button.danger{background:#3a2020;border-color:#5b2c2c;color:#ffd7d7}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+  .tab{padding:8px 12px;border:1px solid #31384c;border-radius:8px;background:#1b2030;cursor:pointer}
+  .tab.active{background:#27304a;border-color:#3b4a6b}
+  .panel{background:var(--panel);border:1px solid #2a2f3b;border-radius:12px;padding:16px}
+  textarea{width:100%;min-height:160px;background:#0f1320;border:1px solid #27304a;color:var(--text);padding:12px;border-radius:8px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .col{flex:1;min-width:300px}
+  .card{background:#131725;border:1px solid #2a2f3b;border-radius:12px;padding:16px;margin:8px 0}
+  .q{font-size:22px;margin:0 0 8px}
+  .muted{color:var(--muted)}
+  .choices{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
+  .choice{background:#1b2030;border:1px solid #31384c;border-radius:10px;padding:10px;cursor:pointer;text-align:left}
+  .choice.correct{border-color:#2c6e49;background:#153222}
+  .choice.wrong{border-color:#6e2c2c;background:#2a1717}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #31384c;background:#1b2030;margin-right:6px}
+  footer{margin-top:16px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+  .spacer{flex:1}
+  .center{display:flex;align-items:center;justify-content:center;min-height:120px;color:var(--muted)}
+  .row-item{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px dashed #2a2f3b}
+  .row-actions button{padding:4px 8px;font-size:12px}
+  .inline{display:inline-flex;gap:8px;align-items:center}
+  .icon-btn{padding:4px 8px}
+  .small{font-size:12px; opacity:.8}
+</style>
+</head>
+<body>
+<header>
+  <h1>Vocab 1000 — 離線練習</h1>
+  <div class="bar">
+    <span class="muted">語音：</span>
+    <select id="voiceSelect" style="min-width:220px"></select>
+    <span class="muted">速度</span>
+    <input id="voiceRate" type="range" min="0.5" max="1.5" step="0.1" value="1" style="width:120px">
+    <button id="btnTestSpeak" title="測試播放">🔊 測試</button>
+    <span class="spacer"></span>
+    <input id="filePicker" type="file" accept=".json,.tsv,.txt" style="display:none">
+    <button id="btnImportFile" title="從檔案載入（JSON/TSV）">載入檔案</button>
+    <button id="btnExport" title="匯出目前進度為 JSON">匯出進度</button>
+    <button class="danger" id="btnClear">清除所有單字</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab active" data-tab="import">資料匯入 / 管理</div>
+    <div class="tab" data-tab="browse">瀏覽模式（上一個 / 下一個）</div>
+    <div class="tab" data-tab="mcq">選擇題（顯示正解）</div>
+    <div class="tab" data-tab="mcq-today">今日已練選擇題（顯示正解）</div>
+    <div class="tab" data-tab="mcq-archive">過往已練選擇題（顯示正解）</div>
+  </div>
+
+  <section class="panel" id="panel-import">
+    <div class="row">
+      <div class="col">
+        <h3>貼上 TSV 或 JSON</h3>
+        <p class="muted">TSV 欄位：<code>word[TAB]definition[TAB]example[TAB]tags</code></p>
+        <textarea id="txtImport" placeholder="word	definition	example	tags"></textarea>
+        <div class="bar">
+          <button id="btnImport">匯入</button>
+          <button id="btnDemo">載入示範</button>
+        </div>
+      </div>
+      <div class="col">
+        <h3>搜尋 / 篩選</h3>
+        <input id="txtSearch" placeholder="搜尋關鍵字..." style="width:100%;margin-bottom:8px">
+        <div id="list" class="card" style="max-height:280px;overflow:auto"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 瀏覽模式 -->
+  <section class="panel" id="panel-browse" hidden>
+    <div id="browseCard" class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="inline">
+          <div id="browseIndex" class="pill"># 0 / 0</div>
+          <div id="browseWord" class="q">—</div>
+          <button id="btnSpeakBrowse" class="icon-btn" title="發音此字">🔊</button>
+        </div>
+        <div class="inline">
+          <button id="btnPrev" title="上一個">⟵ 上一個</button>
+          <button id="btnNext" title="下一個">下一個 ⟶</button>
+          <button id="btnDelCurrentBrowse" class="danger" title="刪除此字">刪除此字</button>
+        </div>
+      </div>
+      <div id="browseDef" class="muted" style="margin-top:4px">—</div>
+      <div id="browseEx" class="muted" style="margin-top:6px; font-style:italic; opacity:.9"></div>
+      <div class="small muted" id="browseSeenHint" style="margin-top:8px"></div>
+    </div>
+    <div id="browseEmpty" class="center" hidden>目前沒有單字。請先在「資料匯入 / 管理」加入單字。</div>
+  </section>
+
+  <!-- MCQ 一般 -->
+  <section class="panel" id="panel-mcq" hidden>
+    <div class="bar">
+      <label>選項數：
+        <select id="mcqN"><option>4</option><option>3</option><option>5</option><option>6</option></select>
+      </label>
+      <span class="spacer"></span>
+      <button id="btnDelCurrentMcq" class="danger" title="刪除此字">刪除此字</button>
+    </div>
+    <div id="mcqCard" class="card">
+      <div class="inline">
+        <div id="mcqQ" class="q">—</div>
+        <button id="btnSpeakMcq" class="icon-btn" title="發音此字">🔊</button>
+      </div>
+      <div class="muted" id="mcqHint">選出正確定義</div>
+      <div class="small muted" id="mcqCountHint" style="margin-top:4px"></div>
+      <div class="choices" id="choices"></div>
+      <div id="mcqEx" class="muted" style="margin-top:10px; font-style:italic; opacity:.9" hidden></div>
+      <div class="bar" style="margin-top:12px"><button id="btnNextMcq" hidden>下一題</button></div>
+    </div>
+    <div id="mcqEmpty" class="center" hidden>目前沒有單字可出題（請匯入資料）。</div>
+  </section>
+
+  <!-- MCQ 今日已練 -->
+  <section class="panel" id="panel-mcq-today" hidden>
+    <div class="bar">
+      <label>選項數：
+        <select id="mcqTodayN"><option>4</option><option>3</option><option>5</option><option>6</option></select>
+      </label>
+      <span class="spacer"></span>
+      <button id="btnDelCurrentMcqToday" class="danger" title="刪除此字">刪除此字</button>
+    </div>
+    <div id="mcqTodayCard" class="card">
+      <div class="inline" style="align-items:baseline">
+        <div id="mcqTodayIndex" class="pill"># 0 / 0</div>
+        <div id="mcqTodayQ" class="q">—</div>
+        <button id="btnSpeakMcqToday" class="icon-btn" title="發音此字">🔊</button>
+      </div>
+      <div class="muted" id="mcqTodayHint">選出正確定義（僅今日已練）</div>
+      <div class="small muted" id="mcqTodayCountHint" style="margin-top:4px"></div>
+      <div class="choices" id="choicesToday"></div>
+      <div id="mcqTodayEx" class="muted" style="margin-top:10px; font-style:italic; opacity:.9" hidden></div>
+      <div class="bar" style="margin-top:12px"><button id="btnNextToday" hidden>下一題</button></div>
+    </div>
+    <div id="mcqTodayEmpty" class="center" hidden>今天尚未練過任何單字，或單字不足以出題（至少需要 2 個）。</div>
+
+    <!-- 今日已練清單（含次數） -->
+    <div id="mcqTodayLog" class="card">
+      <strong>今日已練清單</strong>
+      <div class="small muted" id="mcqTodaySummary" style="margin-top:6px"></div>
+      <div id="mcqTodayList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+    </div>
+  </section>
+
+  <!-- MCQ 過往：昨天以前 -->
+  <section class="panel" id="panel-mcq-archive" hidden>
+    <div class="bar">
+      <label>選項數：
+        <select id="mcqArchiveN"><option>4</option><option>3</option><option>5</option><option>6</option></select>
+      </label>
+      <button id="btnRollTodayToArchive" title="把目前『今日已練』直接轉入過往（寫到昨天）">↪ 轉存今日→過往</button>
+    <span class="spacer"></span>
+      <button id="btnDelCurrentMcqArchive" class="danger" title="刪除此字">刪除此字</button>
+    </div>
+    <div id="mcqArchiveCard" class="card">
+      <div class="inline" style="align-items:baseline">
+        <div id="mcqArchiveIndex" class="pill"># 0 / 0</div>
+        <div id="mcqArchiveQ" class="q">—</div>
+        <button id="btnSpeakMcqArchive" class="icon-btn" title="發音此字">🔊</button>
+      </div>
+      <div class="muted" id="mcqArchiveHint">選出正確定義（昨天以前的已練單字）</div>
+      <div class="small muted" id="mcqArchiveCountHint" style="margin-top:4px"></div>
+      <div class="choices" id="choicesArchive"></div>
+      <div id="mcqArchiveEx" class="muted" style="margin-top:10px; font-style:italic; opacity:.9" hidden></div>
+      <div class="bar" style="margin-top:12px"><button id="btnNextArchive" hidden>下一題</button></div>
+    </div>
+    <div id="mcqArchiveEmpty" class="center" hidden>過往（昨天以前）已練單字不足以出題（至少需要 2 個）。</div>
+
+    <!-- 過往已練清單（含次數） -->
+    <div id="mcqArchiveLog" class="card">
+      <strong>過往已練清單（昨天以前）</strong>
+      <div class="small muted" id="mcqArchiveSummary" style="margin-top:6px"></div>
+      <div id="mcqArchiveList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+    </div>
+  </section>
+
+  <footer id="stats">
+    <span class="pill" id="statTotal">總字數：0</span>
+    <span class="pill" id="statToday">今日已練：0</span>
+    <span class="spacer"></span>
+    <span class="muted">進度保存在本機瀏覽器。不同裝置不會自動同步。</span>
+  </footer>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+// ===== DOMContentLoaded =====
+
+/* ---------- Keys & State ---------- */
+const STORAGE_KEY = "vocab1000.deck.v2";
+const DEMO_FLAG   = "vocab1000.nodemo";
+const VOICE_KEY   = "vocab1000.voiceURI";
+const RATE_KEY    = "vocab1000.voiceRate";
+const TODAY_KEY   = "vocab1000.practice.today"; // {date:'YYYY-MM-DD', ids:string[]}
+const LOG_KEY     = "vocab1000.practice.log";   // [{date:'YYYY-MM-DD', ids:string[]}, ...]
+const COUNT_KEY   = "vocab1000.practice.counts"; // {id: number}
+
+let deck = loadDeck();
+let browseIdx = 0;
+let lastBrowseMarkedId = null;
+
+let todayStore = loadTodayStore();   // {date, ids:Set}
+let practiceLog = loadPracticeLog(); // [{date, ids:Set}]
+let counts = loadCounts();           // {id:number}
+normalizeLogs();
+
+/* ---------- Utilities ---------- */
+function nowDateStr(){ const d=new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
+function yesterdayStr(){ const d=new Date(); d.setDate(d.getDate()-1); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]} return a; }
+function uid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function $(s){ return document.querySelector(s); }
+function $all(s){ return Array.from(document.querySelectorAll(s)); }
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+
+/* ---------- TTS ---------- */
+const voiceSel=$("#voiceSelect"), rateEl=$("#voiceRate");
+function getVoices(){ return window.speechSynthesis ? speechSynthesis.getVoices() : []; }
+function populateVoices(){ if(!voiceSel) return; const voices=getVoices().sort((a,b)=>{const ae=/en(-|_)?/i.test(a.lang)?0:1; const be=/en(-|_)?/i.test(b.lang)?0:1; return ae-be||a.name.localeCompare(b.name);}); voiceSel.innerHTML=""; for(const v of voices){ const opt=document.createElement("option"); opt.value=v.voiceURI; opt.textContent=`${v.name} (${v.lang})`; voiceSel.appendChild(opt);} const saved=localStorage.getItem(VOICE_KEY); if(saved&&[...voiceSel.options].some(o=>o.value===saved)) voiceSel.value=saved; else { const firstEn=[...voiceSel.options].find(o=>/en(-|_)?/i.test(o.textContent)); voiceSel.value=firstEn?firstEn.value:voiceSel.options[0]?.value||""; } }
+function speak(text){ if(!("speechSynthesis" in window)) return alert("此瀏覽器不支援語音朗讀（SpeechSynthesis）。請改用 Chrome/Edge/Firefox。"); if(!text) return; const u=new SpeechSynthesisUtterance(text); const uri=voiceSel?.value||localStorage.getItem(VOICE_KEY)||""; const v=getVoices().find(x=>x.voiceURI===uri)||getVoices().find(x=>/en(-|_)?/i.test(x.lang)); if(v) u.voice=v; const rate=parseFloat(rateEl?.value||localStorage.getItem(RATE_KEY)||"1")||1; u.rate=Math.min(1.5,Math.max(0.5,rate)); u.lang=(u.voice&&u.voice.lang)||"en-US"; speechSynthesis.cancel(); speechSynthesis.speak(u); }
+if("speechSynthesis" in window){ populateVoices(); window.speechSynthesis.onvoiceschanged=populateVoices; const savedRate=localStorage.getItem(RATE_KEY); if(rateEl&&savedRate) rateEl.value=savedRate; voiceSel?.addEventListener("change", ()=> localStorage.setItem(VOICE_KEY, voiceSel.value)); rateEl?.addEventListener("input", ()=> localStorage.setItem(RATE_KEY, rateEl.value)); $("#btnTestSpeak")?.addEventListener("click", ()=> speak("pronunciation")); } else { $("#voiceSelect")?.setAttribute("disabled","true"); $("#voiceRate")?.setAttribute("disabled","true"); $("#btnTestSpeak")?.setAttribute("disabled","true"); }
+document.addEventListener("keydown",(e)=>{ if(e.key.toLowerCase()!=="p") return; const tab=document.querySelector(".tab.active")?.getAttribute("data-tab"); if(tab==="browse" && deck[browseIdx]) speak(deck[browseIdx].word); if(tab==="mcq"&&currentMcq) speak(currentMcq.word); if(tab==="mcq-today"&&currentMcqToday) speak(currentMcqToday.word); if(tab==="mcq-archive"&&currentMcqArchive) speak(currentMcqArchive.word); });
+
+/* ---------- Load/Save ---------- */
+function loadDeck(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return []; const arr=JSON.parse(raw); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
+function saveDeck(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(deck)); syncStats(); ensureBrowseIdxInRange(); }
+function loadTodayStore(){ try{ const raw=localStorage.getItem(TODAY_KEY); const d=raw?JSON.parse(raw):null; const today=nowDateStr(); if(!d||d.date!==today) return {date:today, ids:new Set()}; return {date:d.date, ids:new Set(d.ids||[])}; }catch{ return {date:nowDateStr(), ids:new Set()}; } }
+function saveTodayStore(){ localStorage.setItem(TODAY_KEY, JSON.stringify({date: todayStore.date, ids: [...todayStore.ids]})); }
+function loadPracticeLog(){ try{ const raw=localStorage.getItem(LOG_KEY); const arr=raw?JSON.parse(raw):[]; return arr.map(d=>({date:d.date, ids:new Set(d.ids||[])})); }catch{ return []; } }
+function savePracticeLog(){ const serial=practiceLog.map(d=>({date:d.date, ids:[...d.ids]})); localStorage.setItem(LOG_KEY, JSON.stringify(serial)); }
+function loadCounts(){ try{ const raw=localStorage.getItem(COUNT_KEY); return raw?JSON.parse(raw):{}; }catch{ return {}; } }
+function saveCounts(){ localStorage.setItem(COUNT_KEY, JSON.stringify(counts)); }
+function normalizeLogs(){ const today=nowDateStr(); practiceLog=practiceLog.filter(d=> d && d.date && d.date < today); savePracticeLog(); }
+function rollOverIfNewDay(){ const today=nowDateStr(); if(todayStore.date!==today){ if(todayStore.ids.size>0){ practiceLog.push({date:todayStore.date, ids:new Set(todayStore.ids)}); savePracticeLog(); } todayStore={date:today, ids:new Set()}; saveTodayStore(); normalizeLogs(); renderTodayLog(); renderArchiveLog(); } }
+function getArchiveIdSet(){ const set=new Set(); for(const d of practiceLog){ if(d.date < nowDateStr()){ for(const id of d.ids) set.add(id); } } return set; }
+
+/* ---------- Pools & numbering ---------- */
+function getTodayPool(){ return deck.filter(c=> todayStore.ids.has(c.id)).sort((a,b)=> (a.word||"").localeCompare(b.word||"")); }
+function getArchivePool(){ const idSet=getArchiveIdSet(); return deck.filter(c=> idSet.has(c.id)).sort((a,b)=> (a.word||"").localeCompare(b.word||"")); }
+function indexInPool(card, pool){ const idx = pool.findIndex(x=> x.id===card.id); return idx<0? null : idx+1; }
+
+/* ---------- Practice marking ---------- */
+function bumpCount(card){ if(!card?.id) return; counts[card.id]=(counts[card.id]||0)+1; saveCounts(); }
+function markPracticed(card){ if(!card?.id) return; rollOverIfNewDay(); todayStore.ids.add(card.id); saveTodayStore(); bumpCount(card); syncStats(); renderTodayLog(); }
+
+/* ---------- Import/Export/Demo/Clear ---------- */
+function initCardFields(c){ c.id=c.id||uid(); }
+function parseTSV(text){ const lines=text.trim().split(/\r?\n/); const rows=[]; const header=lines[0].toLowerCase(); let start=0; if(header.includes("word")&&header.includes("definition")) start=1; for(let i=start;i<lines.length;i++){ const cols=lines[i].split(/\t/); if(!cols[0]) continue; rows.push({word:cols[0].trim(), definition:(cols[1]||"").trim(), example:(cols[2]||"").trim(), tags:(cols[3]||"").trim()}); } return rows; }
+function parseJSON(text){ const arr=JSON.parse(text); return (Array.isArray(arr)?arr:[arr]).map(x=>({word:String(x.word||"").trim(), definition:String(x.definition||"").trim(), example:String(x.example||"").trim(), tags:Array.isArray(x.tags)?x.tags.join(";"):String(x.tags||"").trim(), id:x.id})); }
+
+const txtImport=$("#txtImport");
+$("#btnImport")?.addEventListener("click", ()=>{ const s=(txtImport?.value||"").trim(); if(!s){ alert("請先貼上 TSV 或 JSON。"); return; } let arr; try{ arr=(s.startsWith("{")||s.startsWith("["))?parseJSON(s):parseTSV(s);}catch(e){ alert("解析失敗："+(e?.message||e)); return;} arr.forEach(c=>initCardFields(c)); deck=arr; localStorage.setItem(DEMO_FLAG,"1"); todayStore={date:nowDateStr(), ids:new Set()}; saveTodayStore(); practiceLog=[]; savePracticeLog(); counts={}; saveCounts(); saveDeck(); renderList(); refreshBrowse(); refreshMCQ(); refreshMCQToday(); refreshMCQArchive(); renderTodayLog(); renderArchiveLog(); alert(`已匯入 ${deck.length} 筆（貼上）。`); });
+
+const filePicker=$("#filePicker");
+$("#btnImportFile")?.addEventListener("click", ()=> filePicker?.click());
+filePicker?.addEventListener("change", async (e)=>{ const file=e.target.files&&e.target.files[0]; if(!file) return; try{ const text=await file.text(); const looksJSON=file.name.toLowerCase().endsWith(".json")||text.trim().startsWith("{")||text.trim().startsWith("["); let arr=looksJSON?parseJSON(text):parseTSV(text); arr.forEach(c=>initCardFields(c)); deck=arr; localStorage.setItem(DEMO_FLAG,"1"); todayStore={date:nowDateStr(), ids:new Set()}; saveTodayStore(); practiceLog=[]; savePracticeLog(); counts={}; saveCounts(); saveDeck(); renderList(); refreshBrowse(); refreshMCQ(); refreshMCQToday(); refreshMCQArchive(); renderTodayLog(); renderArchiveLog(); alert(`已從檔案載入 ${deck.length} 筆：${file.name}`); }catch(err){ alert("載入失敗：" + (err?.message || err)); } finally{ e.target.value=""; } });
+
+$("#btnDemo")?.addEventListener("click", ()=>{ localStorage.removeItem(DEMO_FLAG); deck=[]; saveDeck(); const demoTSV="word\tdefinition\texample\ttags\nfirmware\tsoftware in hardware\tWe updated the SSD firmware.\ttech;core\nlatency\tdelay before data starts\tLower latency improves UX.\ttech;core\nthroughput\tamount processed per time\tThroughput doubled on Gen5.\ttech;core\n"; const arr=parseTSV(demoTSV); arr.forEach(c=>initCardFields(c)); deck=arr; saveDeck(); todayStore={date:nowDateStr(), ids:new Set()}; saveTodayStore(); practiceLog=[]; savePracticeLog(); counts={}; saveCounts(); renderList(); refreshBrowse(); refreshMCQ(); refreshMCQToday(); refreshMCQArchive(); renderTodayLog(); renderArchiveLog(); });
+
+$("#btnExport")?.addEventListener("click", ()=>{ const blob=new Blob([JSON.stringify(deck,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="vocab_deck.json"; a.click(); URL.revokeObjectURL(a.href); });
+
+$("#btnClear")?.addEventListener("click", ()=>{ const ok=(typeof window.confirm)==="function"?window.confirm("確定要刪除所有單字嗎？此動作無法復原。"):true; if(!ok) return; deck=[]; localStorage.removeItem(STORAGE_KEY); localStorage.setItem(DEMO_FLAG,"1"); todayStore={date:nowDateStr(), ids:new Set()}; saveTodayStore(); practiceLog=[]; savePracticeLog(); counts={}; saveCounts(); browseIdx=0; lastBrowseMarkedId=null; syncStats(); renderList(); refreshBrowse(); refreshMCQ(); refreshMCQToday(); refreshMCQArchive(); renderTodayLog(); renderArchiveLog(); alert("已清除所有單字。"); });
+
+/* ---------- List UI ---------- */
+function renderList(){ const q=($("#txtSearch")?.value||"").toLowerCase(); const box=$("#list"); if(!box) return; const arr=deck.filter(c=>(c.word+c.definition+(c.tags||"")).toLowerCase().includes(q)); box.innerHTML=arr.map((c,i)=>`<div class="row-item"><div class="inline" style="flex-direction:column;align-items:flex-start;gap:4px"><div class="inline"><span class="pill"># ${i+1}</span><strong>${escapeHtml(c.word)}</strong><button class="icon-btn" data-say="${escapeHtml(c.word)}" title="發音">🔊</button><span class="muted">— ${escapeHtml(c.definition)}</span></div>${c.example && c.example.trim()?`<div class="muted" style="font-style:italic;opacity:.9;margin-top:2px">${escapeHtml(c.example)}</div>`:``}</div><div class="row-actions"><button data-del="${c.id}" class="danger">刪除</button></div></div>`).join("") || "<div class='muted'>（尚無資料）</div>"; }
+$("#txtSearch")?.addEventListener("input", renderList);
+$("#list")?.addEventListener("click",(ev)=>{ const sayBtn=ev.target.closest("[data-say]"); if(sayBtn){ speak(sayBtn.getAttribute("data-say")); return; } const delBtn=ev.target.closest("[data-del]"); if(delBtn){ deleteById(delBtn.getAttribute("data-del")); } });
+function deleteById(id){ const before=deck.length; deck=deck.filter(c=> c.id!==id); if(deck.length===before) return; if(todayStore.ids.has(id)){ todayStore.ids.delete(id); saveTodayStore(); } for(const day of practiceLog){ if(day.ids.has(id)){ day.ids.delete(id); } } savePracticeLog(); delete counts[id]; saveCounts(); ensureBrowseIdxInRange(); saveDeck(); renderList(); refreshBrowse(); refreshMCQ(); refreshMCQToday(); refreshMCQArchive(); renderTodayLog(); renderArchiveLog(); }
+
+/* ---------- Tabs ---------- */
+const tabsWrap=document.querySelector(".tabs");
+function showPanel(key){ $all("section.panel").forEach(p=>p.hidden=true); const target=document.getElementById("panel-"+key); if(target) target.hidden=false; $all(".tab").forEach(x=>x.classList.remove("active")); const cur=document.querySelector(`.tab[data-tab="${key}"]`); cur&&cur.classList.add("active"); if(key==="browse") refreshBrowse(); if(key==="mcq") refreshMCQ(); if(key==="mcq-today") refreshMCQToday(); if(key==="mcq-archive") refreshMCQArchive(); }
+tabsWrap?.addEventListener("click",(ev)=>{ const t=ev.target.closest(".tab"); if(!t) return; showPanel(t.dataset.tab); });
+showPanel("import");
+
+/* ---------- Stats ---------- */
+function syncStats(){ rollOverIfNewDay(); $("#statTotal").textContent="總字數："+deck.length; $("#statToday").textContent="今日已練："+todayStore.ids.size; }
+
+/* ---------- 瀏覽模式（自動列入今日已練） ---------- */
+function ensureBrowseIdxInRange(){ if(deck.length===0){ browseIdx=0; return;} if(browseIdx<0) browseIdx=0; if(browseIdx>deck.length-1) browseIdx=deck.length-1; }
+function renderBrowseCard(){ const cardBox=$("#browseCard"), empty=$("#browseEmpty"); if(deck.length===0){ if(empty) empty.hidden=false; if(cardBox) cardBox.hidden=true; return;} if(empty) empty.hidden=true; if(cardBox) cardBox.hidden=false; ensureBrowseIdxInRange(); const c=deck[browseIdx]; if(!c) return; if(c.id!==lastBrowseMarkedId){ markPracticed(c); lastBrowseMarkedId=c.id; } $("#browseIndex").textContent=`# ${browseIdx+1} / ${deck.length}`; $("#browseWord").textContent=c.word||"—"; $("#browseDef").textContent=c.definition||"—"; const ex=$("#browseEx"); if(ex){ if(c.example&&c.example.trim()){ ex.textContent=c.example; ex.hidden=false; } else { ex.textContent=""; ex.hidden=true; } } $("#browseSeenHint").textContent = `本字已練 ${counts[c.id]||0} 次（總計）`; }
+function refreshBrowse(){ syncStats(); renderBrowseCard(); }
+$("#btnPrev")?.addEventListener("click", ()=>{ if(deck.length===0) return; browseIdx=Math.max(0,browseIdx-1); renderBrowseCard(); });
+$("#btnNext")?.addEventListener("click", ()=>{ if(deck.length===0) return; browseIdx=Math.min(deck.length-1,browseIdx+1); renderBrowseCard(); });
+$("#btnSpeakBrowse")?.addEventListener("click", ()=>{ const c=deck[browseIdx]; if(c) speak(c.word); });
+$("#btnDelCurrentBrowse")?.addEventListener("click", ()=>{ const c=deck[browseIdx]; if(!c){ alert("目前沒有卡片。"); return; } if(confirm(`刪除「${c.word}」？`)){ deleteById(c.id); if(browseIdx>=deck.length) browseIdx=Math.max(0,deck.length-1); renderBrowseCard(); } });
+
+/* ---------- 今日已練清單（共用排序） ---------- */
+function renderTodayLog(){
+  const box=$("#mcqTodayList"); const summary=$("#mcqTodaySummary"); if(!box||!summary) return;
+  const arr=getTodayPool();
+  summary.textContent = arr.length? `今日已練共 ${arr.length} 個` : "今日尚無練過單字";
+  box.innerHTML = arr.map((c,i)=>`<div class="row-item"><div><span class="pill"># ${i+1}</span> <strong>${escapeHtml(c.word)}</strong> <span class="muted">— ${escapeHtml(c.definition)}</span></div><div class="small muted">已練 ${counts[c.id]||0} 次</div></div>`).join("") || "<div class='muted small'>（空）</div>";
+}
+function renderArchiveLog(){
+  const box=$("#mcqArchiveList"); const summary=$("#mcqArchiveSummary"); if(!box||!summary) return;
+  const arr=getArchivePool();
+  summary.textContent = arr.length? `過往已練共 ${arr.length} 個（昨天以前）` : "過往目前沒有資料";
+  box.innerHTML = arr.map((c,i)=>`<div class="row-item"><div><span class="pill"># ${i+1}</span> <strong>${escapeHtml(c.word)}</strong> <span class="muted">— ${escapeHtml(c.definition)}</span></div><div class="small muted">已練 ${counts[c.id]||0} 次</div></div>`).join("") || "<div class='muted small'>（空）</div>";
+}
+
+/* ---------- MCQ（一般） ---------- */
+let currentMcq=null;
+$("#btnNextMcq")?.addEventListener("click", ()=> newMCQ());
+$("#mcqN")?.addEventListener("change", refreshMCQ);
+$("#btnSpeakMcq")?.addEventListener("click", ()=> currentMcq && speak(currentMcq.word));
+function refreshMCQ(){ syncStats(); const card=$("#mcqCard"), empty=$("#mcqEmpty"), exEl=$("#mcqEx"); if(exEl){ exEl.hidden=true; exEl.textContent=""; } if(deck.length<2){ if(empty) empty.hidden=false; if(card) card.hidden=true; return; } if(empty) empty.hidden=true; if(card) card.hidden=false; newMCQ(); }
+function newMCQ(){ const nEl=$("#mcqN"); const n=parseInt(nEl && "value" in nEl ? nEl.value : "4",10)||4; if(deck.length<2){ refreshMCQ(); return; } currentMcq=deck[Math.floor(Math.random()*deck.length)]; const others=shuffle(deck.filter(c=>c!==currentMcq)).slice(0,n-1); const options=shuffle([currentMcq, ...others]); $("#mcqQ").textContent=currentMcq.word; $("#choices").innerHTML=""; $("#mcqHint").textContent="選出正確定義"; $("#mcqCountHint").textContent = `本字已練 ${counts[currentMcq.id]||0} 次（總計）`; $("#btnNextMcq").hidden=true; const exEl=$("#mcqEx"); if(exEl){ exEl.hidden=true; exEl.textContent=""; }
+  options.forEach(opt=>{ const el=document.createElement("button"); el.className="choice"; el.innerHTML=escapeHtml(opt.definition||"(no definition)"); el.addEventListener("click", ()=>{ Array.from(document.querySelectorAll("#panel-mcq .choice")).forEach(b=> b.disabled=true); const ex2=$("#mcqEx"); if(opt===currentMcq){ el.classList.add("correct"); markPracticed(currentMcq); $("#mcqHint").textContent="答對了！"; if(ex2 && currentMcq.example && currentMcq.example.trim()){ ex2.textContent=currentMcq.example; ex2.hidden=false; } $("#btnNextMcq").hidden=false; $("#mcqCountHint").textContent = `本字已練 ${counts[currentMcq.id]||0} 次（總計）`; } else { el.classList.add("wrong"); const nodes=Array.from(document.querySelectorAll("#panel-mcq .choice")); const correctBtn=nodes.find(b=>b.innerText===(currentMcq.definition||"(no definition)")); if(correctBtn) correctBtn.classList.add("correct"); markPracticed(currentMcq); $("#mcqHint").textContent="答錯了。已標示正確答案，按「下一題」繼續。"; if(ex2 && currentMcq.example && currentMcq.example.trim()){ ex2.textContent=currentMcq.example; ex2.hidden=false; } $("#btnNextMcq").hidden=false; $("#mcqCountHint").textContent = `本字已練 ${counts[currentMcq.id]||0} 次（總計）`; } renderTodayLog(); }); $("#choices").appendChild(el); }); }
+$("#btnDelCurrentMcq")?.addEventListener("click", ()=>{ if(!currentMcq){ alert("目前沒有卡片。"); return; } if(confirm(`刪除「${currentMcq.word}」？`)) deleteById(currentMcq.id); });
+
+/* ---------- MCQ（今日已練） ---------- */
+let currentMcqToday=null;
+$("#btnNextToday")?.addEventListener("click", ()=> newMCQToday());
+$("#mcqTodayN")?.addEventListener("change", refreshMCQToday);
+$("#btnSpeakMcqToday")?.addEventListener("click", ()=> currentMcqToday && speak(currentMcqToday.word));
+function refreshMCQToday(){ syncStats(); const card=$("#mcqTodayCard"), empty=$("#mcqTodayEmpty"), exEl=$("#mcqTodayEx"); if(exEl){ exEl.hidden=true; exEl.textContent=""; } const pool=getTodayPool(); if(pool.length<2){ if(empty) empty.hidden=false; if(card) card.hidden=true; renderTodayLog(); return; } if(empty) empty.hidden=true; if(card) card.hidden=false; newMCQToday(); renderTodayLog(); }
+function newMCQToday(){ const nEl=$("#mcqTodayN"); const n=parseInt(nEl && "value" in nEl ? nEl.value : "4",10)||4; const pool=getTodayPool(); if(pool.length<2){ refreshMCQToday(); return; } currentMcqToday=pool[Math.floor(Math.random()*pool.length)]; const others=shuffle(deck.filter(c=>c!==currentMcqToday)).slice(0,n-1); const options=shuffle([currentMcqToday, ...others]);
+  $("#mcqTodayQ").textContent=currentMcqToday.word; $("#choicesToday").innerHTML=""; $("#mcqTodayHint").textContent="選出正確定義（僅今日已練）"; $("#mcqTodayCountHint").textContent = `本字已練 ${counts[currentMcqToday.id]||0} 次（總計）`; $("#btnNextToday").hidden=true; const exEl=$("#mcqTodayEx"); if(exEl){ exEl.hidden=true; exEl.textContent=""; }
+  const pos=indexInPool(currentMcqToday, pool) || 0; $("#mcqTodayIndex").textContent = `# ${pos} / ${pool.length}`;
+  options.forEach(opt=>{ const el=document.createElement("button"); el.className="choice"; el.innerHTML=escapeHtml(opt.definition||"(no definition)"); el.addEventListener("click", ()=>{ Array.from(document.querySelectorAll("#panel-mcq-today .choice")).forEach(b=> b.disabled=true); const ex2=$("#mcqTodayEx");
+      // 在「今日已練」模式作答也要加計次，但不重覆加入 todayStore
+      bumpCount(currentMcqToday); saveCounts(); $("#mcqTodayCountHint").textContent = `本字已練 ${counts[currentMcqToday.id]||0} 次（總計）`;
+      if(opt===currentMcqToday){ el.classList.add("correct"); $("#mcqTodayHint").textContent="答對了！"; } else { el.classList.add("wrong"); const nodes=Array.from(document.querySelectorAll("#panel-mcq-today .choice")); const correctBtn=nodes.find(b=>b.innerText===(currentMcqToday.definition||"(no definition)")); if(correctBtn) correctBtn.classList.add("correct"); $("#mcqTodayHint").textContent="答錯了。已標示正確答案，按「下一題」繼續。"; }
+      if(ex2 && currentMcqToday.example && currentMcqToday.example.trim()){ ex2.textContent=currentMcqToday.example; ex2.hidden=false; }
+      $("#btnNextToday").hidden=false; renderTodayLog();
+  }); $("#choicesToday").appendChild(el); });
+}
+$("#btnDelCurrentMcqToday")?.addEventListener("click", ()=>{ if(!currentMcqToday){ alert("目前沒有卡片。"); return; } if(confirm(`刪除「${currentMcqToday.word}」？`)) deleteById(currentMcqToday.id); });
+
+/* ---------- 手動補救：今日→過往（寫到昨天） ---------- */
+document.getElementById("btnRollTodayToArchive")?.addEventListener("click", rollTodayToArchiveNow);
+function rollTodayToArchiveNow(){ if(!todayStore || todayStore.ids.size===0){ alert("目前『今日已練』沒有任何單字可轉存。"); return; } const confirmMsg=`將「今日已練」的 ${todayStore.ids.size} 個單字直接轉存到『過往（昨天）』？\n\n此動作會清空「今日已練」。`; if(typeof window.confirm==="function" && !confirm(confirmMsg)) return; const yday=yesterdayStr(); let yRec=practiceLog.find(d=>d.date===yday); if(!yRec){ yRec={date:yday, ids:new Set()}; practiceLog.push(yRec); } for(const id of todayStore.ids) yRec.ids.add(id); todayStore={date:nowDateStr(), ids:new Set()}; saveTodayStore(); savePracticeLog(); normalizeLogs(); syncStats(); renderTodayLog(); renderArchiveLog(); refreshMCQToday(); refreshMCQArchive(); alert("已將『今日已練』轉存到『過往（昨天）』，並清空今日集合。"); }
+
+/* ---------- MCQ（過往） ---------- */
+let currentMcqArchive=null;
+$("#btnNextArchive")?.addEventListener("click", ()=> newMCQArchive());
+$("#mcqArchiveN")?.addEventListener("change", refreshMCQArchive);
+$("#btnSpeakMcqArchive")?.addEventListener("click", ()=> currentMcqArchive && speak(currentMcqArchive.word));
+function refreshMCQArchive(){ syncStats(); const card=$("#mcqArchiveCard"), empty=$("#mcqArchiveEmpty"), exEl=$("#mcqArchiveEx"); if(exEl){ exEl.hidden=true; exEl.textContent=""; } const pool=getArchivePool(); if(pool.length<2){ if(empty) empty.hidden=false; if(card) card.hidden=true; renderArchiveLog(); return; } if(empty) empty.hidden=true; if(card) card.hidden=false; newMCQArchive(); renderArchiveLog(); }
+function newMCQArchive(){ const nEl=$("#mcqArchiveN"); const n=parseInt(nEl && "value" in nEl ? nEl.value : "4",10)||4; const pool=getArchivePool(); if(pool.length<2){ refreshMCQArchive(); return; } currentMcqArchive=pool[Math.floor(Math.random()*pool.length)]; const others=shuffle(deck.filter(c=>c!==currentMcqArchive)).slice(0,n-1); const options=shuffle([currentMcqArchive, ...others]);
+  $("#mcqArchiveQ").textContent=currentMcqArchive.word; $("#choicesArchive").innerHTML=""; $("#mcqArchiveHint").textContent="選出正確定義（昨天以前）"; $("#mcqArchiveCountHint").textContent = `本字已練 ${counts[currentMcqArchive.id]||0} 次（總計）`; $("#btnNextArchive").hidden=true; const exEl=$("#mcqArchiveEx"); if(exEl){ exEl.hidden=true; exEl.textContent=""; }
+  const pos=indexInPool(currentMcqArchive, pool) || 0; $("#mcqArchiveIndex").textContent = `# ${pos} / ${pool.length}`;
+  options.forEach(opt=>{ const el=document.createElement("button"); el.className="choice"; el.innerHTML=escapeHtml(opt.definition||"(no definition)"); el.addEventListener("click", ()=>{ Array.from(document.querySelectorAll("#panel-mcq-archive .choice")).forEach(b=> b.disabled=true); const ex2=$("#mcqArchiveEx");
+      bumpCount(currentMcqArchive); saveCounts(); $("#mcqArchiveCountHint").textContent = `本字已練 ${counts[currentMcqArchive.id]||0} 次（總計）`;
+      if(opt===currentMcqArchive){ el.classList.add("correct"); $("#mcqArchiveHint").textContent="答對了！"; } else { el.classList.add("wrong"); const nodes=Array.from(document.querySelectorAll("#panel-mcq-archive .choice")); const correctBtn=nodes.find(b=>b.innerText===(currentMcqArchive.definition||"(no definition)")); if(correctBtn) correctBtn.classList.add("correct"); $("#mcqArchiveHint").textContent="答錯了。已標示正確答案，按「下一題」繼續。"; }
+      if(ex2 && currentMcqArchive.example && currentMcqArchive.example.trim()){ ex2.textContent=currentMcqArchive.example; ex2.hidden=false; }
+      $("#btnNextArchive").hidden=false; renderArchiveLog();
+  }); $("#choicesArchive").appendChild(el); });
+}
+$("#btnDelCurrentMcqArchive")?.addEventListener("click", ()=>{ if(!currentMcqArchive){ alert("目前沒有卡片。"); return; } if(confirm(`刪除「${currentMcqArchive.word}」？`)) deleteById(currentMcqArchive.id); });
+
+/* ---------- Boot ---------- */
+function ensureDemoIfNeeded(){ if(deck.length===0 && localStorage.getItem(DEMO_FLAG)!=="1"){ const demoTSV="word\tdefinition\texample\ttags\nfirmware\tsoftware in hardware\tWe updated the SSD firmware.\ttech;core\nlatency\tdelay before data starts\tLower latency improves UX.\ttech;core\nthroughput\tamount processed per time\tThroughput doubled on Gen5.\ttech;core\n"; const arr=parseTSV(demoTSV); arr.forEach(c=>initCardFields(c)); deck=arr; saveDeck(); } }
+ensureDemoIfNeeded();
+renderList();
+syncStats();
+showPanel("import");
+refreshBrowse();
+renderTodayLog();
+renderArchiveLog();
+
+}); // DOMContentLoaded
+</script>
+
+<!-- ✅ 服務工作器註冊（離線啟用） -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => {
+        console.warn('SW register failed:', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>
